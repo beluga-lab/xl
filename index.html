@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>ESP32 温湿度曲线</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: Arial; text-align: center; padding: 20px; }
+    canvas { max-width: 800px; margin: 0 auto; }
+  </style>
+</head>
+<body>
+  <h2>ESP32 温湿度实时曲线</h2>
+  <canvas id="sensorChart"></canvas>
+
+  <script>
+    const channelID = 3231598; // 你的 Channel ID
+    const readAPIKey = "NG5C6S8JXNCBYN0S"; // ← 替换成你的 Read API Key
+    const results = 60; // 最近 N 条数据
+
+    const ctx = document.getElementById('sensorChart').getContext('2d');
+    const sensorChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [
+          {
+            label: '温度 (°C)',
+            data: [],
+            borderColor: '#ff5733',
+            backgroundColor: 'rgba(255,87,51,0.2)',
+            borderWidth: 2,
+            fill: true
+          },
+          {
+            label: '湿度 (%)',
+            data: [],
+            borderColor: '#3375ff',
+            backgroundColor: 'rgba(51,117,255,0.2)',
+            borderWidth: 2,
+            fill: true
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          y: { beginAtZero: false, title: { display: true, text: '数值' } },
+          x: { title: { display: true, text: '时间（最近 '+results+' 条）' } }
+        }
+      }
+    });
+
+    async function fetchData() {
+      try {
+        // 获取温度 Field 1
+        const tempResp = await fetch(`https://api.thingspeak.com/channels/${channelID}/fields/1.json?api_key=${readAPIKey}&results=${results}`);
+        const tempData = await tempResp.json();
+
+        // 获取湿度 Field 2
+        const humiResp = await fetch(`https://api.thingspeak.com/channels/${channelID}/fields/2.json?api_key=${readAPIKey}&results=${results}`);
+        const humiData = await humiResp.json();
+
+        // 解析时间和数据
+        const labels = tempData.feeds.map(f => f.created_at.split('T')[1].split('Z')[0]);
+        const temps = tempData.feeds.map(f => parseFloat(f.field1));
+        const humis = humiData.feeds.map(f => parseFloat(f.field2));
+
+        sensorChart.data.labels = labels;
+        sensorChart.data.datasets[0].data = temps;
+        sensorChart.data.datasets[1].data = humis;
+        sensorChart.update();
+
+      } catch (error) {
+        console.error("获取数据失败:", error);
+      }
+    }
+
+    fetchData();
+    setInterval(fetchData, 15000); // 每 15 秒刷新一次
+  </script>
+</body>
+</html>
